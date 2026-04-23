@@ -1,0 +1,67 @@
+# Pulls pre-built tool images from GHCR. Override TAG to pin a specific
+# version (default = latest):
+#   TAG=0.1.0 docker compose up -d nmap-svc
+#
+# To build locally instead of pulling:
+#   docker compose build nmap-svc && docker compose up -d nmap-svc
+
+services:
+  dig-svc:
+    image: ghcr.io/istars-smu/trustchain-tool-dig:${TAG:-latest}
+    build:
+      context: ./dig
+    hostname: dig-svc
+    ports: ["9207:9207"]
+
+  exa-search-svc:
+    image: ghcr.io/istars-smu/trustchain-tool-exa-search:${TAG:-latest}
+    build:
+      context: ./exa-search
+    hostname: exa-search-svc
+    ports: ["9216:9216"]
+    environment:
+      EXA_API_KEY: ${EXA_API_KEY:-}
+
+  feroxbuster-svc:
+    image: ghcr.io/istars-smu/trustchain-tool-feroxbuster:${TAG:-latest}
+    build:
+      context: ./feroxbuster
+    hostname: feroxbuster-svc
+    ports: ["9215:9215"]
+
+  http-fetch-svc:
+    # Hostname keeps the dash (matches the lab's compose), but the GHCR
+    # image name keeps the underscore from the source dir for consistency.
+    image: ghcr.io/istars-smu/trustchain-tool-http_fetch:${TAG:-latest}
+    build:
+      context: ./http_fetch
+    hostname: http-fetch-svc
+    ports: ["9220:9220"]
+
+  nmap-svc:
+    image: ghcr.io/istars-smu/trustchain-tool-nmap:${TAG:-latest}
+    build:
+      context: ./nmap
+    hostname: nmap-svc
+    ports: ["9211:9211"]
+
+  nuclei-svc:
+    image: ghcr.io/istars-smu/trustchain-tool-nuclei:${TAG:-latest}
+    build:
+      context: ./nuclei
+    hostname: nuclei-svc
+    ports: ["9214:9214"]
+
+  wafw00f-svc:
+    image: ghcr.io/istars-smu/trustchain-tool-wafw00f:${TAG:-latest}
+    build:
+      context: ./wafw00f
+    hostname: wafw00f-svc
+    ports: ["9213:9213"]
+
+  whatweb-svc:
+    image: ghcr.io/istars-smu/trustchain-tool-whatweb:${TAG:-latest}
+    build:
+      context: ./whatweb
+    hostname: whatweb-svc
+    ports: ["9212:9212"]

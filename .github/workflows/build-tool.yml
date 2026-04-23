@@ -1,0 +1,89 @@
+# Build + push a single tool image to GHCR on tag push.
+#
+# Tag pattern: tools-<tool>-v<X.Y.Z>
+#   tools-nmap-v0.1.0   → ghcr.io/istars-smu/trustchain-tool-nmap:0.1.0
+#   tools-exa-search-v0.2.1 → ghcr.io/istars-smu/trustchain-tool-exa-search:0.2.1
+#
+# To publish a new version:
+#   git tag tools-nmap-v0.1.1
+#   git push --tags
+#
+# Multi-platform: linux/amd64 + linux/arm64 via QEMU. GITHUB_TOKEN has
+# packages:write within the iSTARS-SMU org, no PAT needed.
+
+name: build-and-push-tool
+
+on:
+  push:
+    tags:
+      - 'tools-*-v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tool:
+        description: 'Tool name (e.g. nmap)'
+        required: true
+        type: string
+      version:
+        description: 'Version (e.g. 0.1.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Parse tag → (tool, version)
+        id: parse
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            tool="${{ inputs.tool }}"
+            version="${{ inputs.version }}"
+          else
+            # tag like "tools-nmap-v0.1.0" — strip prefix + suffix.
+            tag="${GITHUB_REF_NAME}"
+            rest="${tag#tools-}"          # nmap-v0.1.0
+            version="${rest##*-v}"        # 0.1.0
+            tool="${rest%-v*}"            # nmap (handles names with dashes too)
+          fi
+          if [[ -z "$tool" || -z "$version" ]]; then
+            echo "failed to parse tag '$tag'" >&2; exit 1
+          fi
+          if [[ ! -d "$tool" ]]; then
+            echo "no directory '$tool/' in repo (tools available: $(ls -d */ | tr -d /))" >&2
+            exit 1
+          fi
+          echo "tool=$tool" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Building $tool @ $version"
+
+      - name: Set up QEMU (cross-arch emulation for multi-platform build)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build + push (multi-platform)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./${{ steps.parse.outputs.tool }}
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ghcr.io/istars-smu/trustchain-tool-${{ steps.parse.outputs.tool }}:${{ steps.parse.outputs.version }}
+            ghcr.io/istars-smu/trustchain-tool-${{ steps.parse.outputs.tool }}:latest
+          cache-from: type=gha,scope=tool-${{ steps.parse.outputs.tool }}
+          cache-to: type=gha,mode=max,scope=tool-${{ steps.parse.outputs.tool }}
