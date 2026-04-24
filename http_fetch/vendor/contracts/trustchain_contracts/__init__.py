@@ -97,6 +97,7 @@ from .stages import (
     ReportInput,
     TechFingerprint,
     Weakness,
+    WeaknessGatherOutput,
 )
 from .tools import (
     HttpFetchMethod,
@@ -139,6 +140,7 @@ __all__ = [
     "ReportInput",
     "TechFingerprint",
     "Weakness",
+    "WeaknessGatherOutput",
     # events
     "ArtifactProducedPayload",
     "ENGINE_ALLOWED_KINDS",

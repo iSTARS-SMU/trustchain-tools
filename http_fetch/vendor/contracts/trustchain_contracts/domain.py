@@ -53,6 +53,10 @@ class RunStatus(str, Enum):
     FAILED = "failed"
     CANCELLED = "cancelled"
     INTERRUPTED = "interrupted"
+    PAUSED = "paused"
+    """Reached the user-requested `until_stage` cleanly; can be resumed via
+    `POST /runs/{id}/resume`. Spec §3.6 — distinct from FAILED/CANCELLED so the
+    UI knows it's a happy stop, not an error."""
 
 
 class StageAttemptStatus(str, Enum):

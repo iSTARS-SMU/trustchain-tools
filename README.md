@@ -43,6 +43,7 @@ curl -X POST http://localhost:9211/invoke \
 | `exa-search` | 9216 | `ghcr.io/istars-smu/trustchain-tool-exa-search`        |
 | `feroxbuster`| 9215 | `ghcr.io/istars-smu/trustchain-tool-feroxbuster`       |
 | `http_fetch` | 9220 | `ghcr.io/istars-smu/trustchain-tool-http_fetch`        |
+| `nvd-search` | 9217 | `ghcr.io/istars-smu/trustchain-tool-nvd-search`        |
 | `nmap`       | 9211 | `ghcr.io/istars-smu/trustchain-tool-nmap`              |
 | `nuclei`     | 9214 | `ghcr.io/istars-smu/trustchain-tool-nuclei`            |
 | `wafw00f`    | 9213 | `ghcr.io/istars-smu/trustchain-tool-wafw00f`           |

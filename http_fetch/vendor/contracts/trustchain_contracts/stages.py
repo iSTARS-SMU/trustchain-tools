@@ -62,9 +62,66 @@ class Weakness(ContractModel):
     description: str
     cve: str | None = None
     source: str
-    """Where this weakness was suggested from: "exa", "nuclei-template", "manual", etc."""
+    """Provenance of this weakness. Canonical values:
+        "nvd"             — authoritative NVD record (via nvd-search tool)
+        "exa"             — extracted from exa-search web result
+        "nuclei-template" — detected by a nuclei template match
+        "manual"          — operator-added / hand-curated
+        "llm"             — LLM-only inference (no external grounding; lowest confidence)
+    Kept as ``str`` (not Literal) for backwards compat with legacy sources,
+    but attack-plan and report engines should treat "nvd" > "nuclei-template" >
+    "exa" > "llm" when ranking by confidence.
+    """
     affected_endpoint: str | None = None
     references: list[str] = Field(default_factory=list)
+
+    # --- Added 2026-04-24 (Phase 3.0.5b) for NVD/Exa dual-source weakness_gather ---
+    evidence_snippet: str | None = None
+    """Short quoted line from the upstream tool / source that justifies this
+    weakness — e.g. the nmap stdout line ``80/tcp open http nginx 1.24.0``
+    that triggered a CVE candidate, or the NVD description excerpt.
+    Lets downstream stages (attack-plan, report) reason from raw evidence
+    without re-loading upstream artifacts. Keep it short (~200 chars);
+    large evidence belongs in artifact_refs."""
+
+    cvss_v3: float | None = None
+    """CVSSv3 base score (0.0–10.0). Set when provenance can authoritatively
+    provide it — NVD records always can; Exa-derived entries only if a
+    parseable NVD mirror was found. Used by attack-plan to rank candidates
+    (see doc/TODO.md Phase 4 pre-rank logic). ``severity_hint`` is the
+    engine's coarse classification; ``cvss_v3`` is the external score."""
+
+
+class WeaknessGatherOutput(ContractModel):
+    """Canonical output DTO for the ``weakness_gather`` stage (e.g. the
+    weakness-gather-exa engine). Parallel to ``ReconOutput`` for recon.
+
+    Wrapping plain ``list[Weakness]`` into this DTO gives downstream
+    stages (attack_plan, report) access to provenance metadata — which
+    tool sources were queried, whether any tool soft-failed — without
+    having to infer from the weaknesses themselves. Added 2026-04-24
+    (Phase 3.1) alongside the weakness-gather-exa engine.
+    """
+
+    target_ref: TargetRef
+    """The target this weakness-gather pass was run against (pulled from
+    upstream ReconOutput.target_ref)."""
+
+    weaknesses: list[Weakness] = Field(default_factory=list)
+    """Deduplicated, merged weakness candidates. Source ordering by the
+    weakness-gather engine's dedup rule: NVD > nuclei-template > exa > llm
+    (see Weakness.source field docstring)."""
+
+    sources_queried: list[str] = Field(default_factory=list)
+    """Which tool sources were actually queried AND returned at least
+    one usable response. E.g. ``["nvd", "exa"]`` for a full dual-source
+    run; ``["nvd"]`` alone if Exa was unavailable; ``[]`` if both were
+    down (then ``notes`` explains and weaknesses is likely empty)."""
+
+    notes: str | None = None
+    """Human-readable summary of soft-failures + diagnostics. Surfaced
+    in reports / audit trail. Typical contents: per-source availability,
+    LLM extraction outcome, dedup stats."""
 
 
 # ============================================================

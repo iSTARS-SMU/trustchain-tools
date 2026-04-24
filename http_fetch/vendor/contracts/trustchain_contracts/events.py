@@ -34,6 +34,10 @@ class EventKind(str, Enum):
     RUN_COMPLETED = "run_completed"
     RUN_FAILED = "run_failed"
     RUN_CANCELLED = "run_cancelled"
+    RUN_PAUSED = "run_paused"
+    """Run reached the user-requested `until_stage` cleanly. Spec §3.6."""
+    RUN_RESUMED = "run_resumed"
+    """Operator triggered `POST /runs/{id}/resume`. Spec §3.6."""
     STAGE_STARTED = "stage_started"
     STAGE_COMPLETED = "stage_completed"
     STAGE_FAILED = "stage_failed"
@@ -198,3 +202,20 @@ class StageSupersededPayload(ContractModel):
     new_attempt_number: int
     reason: str
     """Why the old attempt was superseded: "retry_requested", "worker_crash", ..."""
+
+
+class RunPausedPayload(ContractModel):
+    """Run hit `until_stage` cleanly. Spec §3.6."""
+
+    last_completed_stage: str
+    next_stage: str | None
+    """The stage that would run next on resume; `None` only when until_stage
+    happens to be the final stage of the pipeline (rare but allowed)."""
+    until_stage: str
+
+
+class RunResumedPayload(ContractModel):
+    """Operator called `POST /runs/{id}/resume`. Spec §3.6."""
+
+    from_stage: str
+    until_stage: str | None

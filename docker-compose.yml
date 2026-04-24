@@ -22,6 +22,16 @@ services:
     environment:
       EXA_API_KEY: ${EXA_API_KEY:-}
 
+  nvd-search-svc:
+    image: ghcr.io/istars-smu/trustchain-tool-nvd-search:${TAG:-latest}
+    build:
+      context: ./nvd-search
+    hostname: nvd-search-svc
+    ports: ["9217:9217"]
+    environment:
+      # OPTIONAL — 5/30s rate limit without, 50/30s with. Unset = soft-fail on 429.
+      NVD_API_KEY: ${NVD_API_KEY:-}
+
   feroxbuster-svc:
     image: ghcr.io/istars-smu/trustchain-tool-feroxbuster:${TAG:-latest}
     build:
