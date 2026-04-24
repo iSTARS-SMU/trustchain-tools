@@ -99,6 +99,10 @@ class TargetRef(ContractModel):
 
     id: str
     url: str
+    name: str | None = None
+    """Human-readable name from the project's Target registry. Optional —
+    contract-test fixtures and headless flows can omit it. Carried through
+    so engines can attribute work / Findings can snapshot it."""
     resolved_ip: str | None = None
     target_type: TargetType = "web"
     authorized_scope: list[str] = Field(default_factory=list)

@@ -1,0 +1,26 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "trustchain-tool-gau"
+version = "0.1.0"
+description = "TrustChain Pentest gau tool — Archive.org / AlienVault / CommonCrawl historical URL scraper (thin wrapper over the gau Go binary)."
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.110,<1.0",
+    "uvicorn[standard]>=0.29,<1.0",
+    "pydantic>=2.5,<3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-asyncio>=0.23",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gau"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
