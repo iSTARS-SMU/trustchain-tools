@@ -109,6 +109,20 @@ class WebstructureRequest(BaseModel):
         le=20,
         description="Max concurrent in-flight fetches.",
     )
+    use_playwright: bool = Field(
+        default=True,
+        description="Render pages via headless Chromium before parsing. ON by default (matches LLMAppSec). Required for SPA targets (React/Vue/Angular/Next.js) where the initial HTML is a near-empty shell. Disable for static / SSR sites where the ~1-3s/page rendering overhead is wasted; the httpx fast path is then used instead.",
+    )
+    playwright_wait_until: str = Field(
+        default="networkidle",
+        description="Playwright page.goto() wait condition. 'networkidle' is the safest default for SPAs (waits until ~500ms of no network activity). Other valid values: 'load' / 'domcontentloaded' / 'commit'. Ignored when use_playwright=false.",
+    )
+    playwright_extra_wait_ms: int = Field(
+        default=0,
+        ge=0,
+        le=10_000,
+        description="Additional delay after networkidle before extracting the DOM. Set 1000-3000 for very lazy SPAs that fire XHR after networkidle. 0 by default to keep the common case fast.",
+    )
 
 
 class WebPage(BaseModel):
@@ -165,10 +179,50 @@ class _Crawler:
         self.api_hints: set[str] = set()
 
         self.sem = asyncio.Semaphore(req.concurrency)
+        # Set when run() with use_playwright=True launches a browser. The
+        # context manager is held inside run() for the whole crawl so we
+        # pay the ~500ms launch cost once, not per-page.
+        self._browser = None
 
     async def run(self, client: httpx.AsyncClient) -> None:
         """BFS-ish crawl. Pops up to `concurrency` pages per wave and
-        fetches in parallel, adds their discovered links back to queue."""
+        fetches in parallel, adds their discovered links back to queue.
+
+        When use_playwright=True, holds a single headless Chromium context
+        for the whole crawl (each page gets its own tab). Falls back to
+        httpx if Playwright import fails or browser launch fails (so a
+        misconfigured image still produces partial output)."""
+        if self.req.use_playwright:
+            try:
+                from playwright.async_api import async_playwright
+            except ImportError:
+                logger.warning("playwright not installed; falling back to httpx fast path")
+            else:
+                try:
+                    async with async_playwright() as pw:
+                        self._browser = await pw.chromium.launch(headless=True)
+                        try:
+                            await self._crawl_loop(client)
+                        finally:
+                            await self._browser.close()
+                            self._browser = None
+                    return
+                except Exception as exc:
+                    logger.warning("playwright launch failed (%s); falling back to httpx", exc)
+                    self._browser = None
+                    # Reset visited/queue state so the fallback re-crawls cleanly.
+                    self.visited.clear()
+                    self.queue.clear()
+                    self.queue.append((self.seed_path, 0))
+                    self.pages.clear()
+                    self.forms.clear()
+                    self.api_hints.clear()
+
+        await self._crawl_loop(client)
+
+    async def _crawl_loop(self, client: httpx.AsyncClient) -> None:
+        """The actual BFS loop, called by run() with or without an active
+        Playwright browser context. _fetch_and_parse picks the path."""
         while self.queue and len(self.visited) < self.req.max_pages:
             batch: list[tuple[str, int]] = []
             while self.queue and len(batch) < self.req.concurrency:
@@ -176,10 +230,6 @@ class _Crawler:
                 if path in self.visited:
                     continue
                 if len(self.visited) >= self.req.max_pages:
-                    # Cap hit mid-batch; remaining pops are dropped (queue
-                    # would just re-deliver in the next outer iter where
-                    # the outer guard triggers). Break to process what we
-                    # have so far.
                     break
                 self.visited.add(path)
                 batch.append((path, depth))
@@ -193,55 +243,131 @@ class _Crawler:
         self, client: httpx.AsyncClient, path: str, depth: int
     ) -> None:
         async with self.sem:
+            if self._browser is not None:
+                await self._fetch_via_playwright(path, depth)
+            else:
+                await self._fetch_via_httpx(client, path, depth)
+
+    async def _fetch_via_httpx(
+        self, client: httpx.AsyncClient, path: str, depth: int
+    ) -> None:
+        try:
+            resp = await client.get(
+                self.origin + path,
+                timeout=self.req.timeout_sec,
+                follow_redirects=True,
+            )
+        except (httpx.HTTPError, asyncio.TimeoutError) as exc:
+            logger.debug("fetch failed for %s: %s", path, exc)
+            self.pages.append(WebPage(path=path, status_code=0))
+            return
+
+        ctype_raw = resp.headers.get("content-type", "")
+        ctype = ctype_raw.split(";", 1)[0].strip().lower()
+        body = resp.text if ctype.startswith("text/") else ""
+        title, size_bytes = "", len(resp.content)
+        if ctype == "text/html" and body:
+            soup = BeautifulSoup(body, "html.parser")
+            title = self._title_from_soup(soup)
+            self._handle_links_and_forms(soup, path, depth, body)
+
+        self._record_api_doc_hint_if_matches_path(path)
+
+        self.pages.append(
+            WebPage(
+                path=path,
+                status_code=resp.status_code,
+                title=title,
+                content_type=ctype,
+                size_bytes=size_bytes,
+            )
+        )
+
+    async def _fetch_via_playwright(self, path: str, depth: int) -> None:
+        """Open a fresh tab in the shared browser, navigate, wait for
+        rendering to settle, then extract from the rendered DOM."""
+        url = self.origin + path
+        # Per-page context so cookies don't leak across pages and we can
+        # close cleanly even on errors.
+        ctx = await self._browser.new_context()
+        try:
+            page = await ctx.new_page()
             try:
-                resp = await client.get(
-                    self.origin + path,
-                    timeout=self.req.timeout_sec,
-                    follow_redirects=True,
+                resp = await page.goto(
+                    url,
+                    wait_until=self.req.playwright_wait_until,
+                    timeout=int(self.req.timeout_sec * 1000),
                 )
-            except (httpx.HTTPError, asyncio.TimeoutError) as exc:
-                logger.debug("fetch failed for %s: %s", path, exc)
+            except Exception as exc:
+                logger.debug("playwright goto failed for %s: %s", url, exc)
                 self.pages.append(WebPage(path=path, status_code=0))
                 return
 
-            ctype_raw = resp.headers.get("content-type", "")
+            if self.req.playwright_extra_wait_ms:
+                await page.wait_for_timeout(self.req.playwright_extra_wait_ms)
+
+            status_code = resp.status if resp else 0
+            ctype_raw = (resp.headers.get("content-type", "") if resp else "")
             ctype = ctype_raw.split(";", 1)[0].strip().lower()
 
-            title = ""
-            body = resp.text if ctype.startswith("text/") else ""
-            if ctype == "text/html" and body:
-                soup = BeautifulSoup(body, "html.parser")
-                if soup.title and soup.title.string:
-                    title = soup.title.string.strip()[:200]
+            try:
+                body = await page.content()
+            except Exception as exc:
+                logger.debug("playwright content() failed for %s: %s", url, exc)
+                body = ""
 
-                if depth < self.req.max_depth:
-                    for link in self._extract_links(soup, path):
-                        if link not in self.visited:
-                            self.queue.append((link, depth + 1))
+            soup = BeautifulSoup(body, "html.parser") if body else None
+            title = self._title_from_soup(soup) if soup else ""
+            if soup is not None:
+                self._handle_links_and_forms(soup, path, depth, body)
 
-                for form_path, method, action, fields in self._extract_forms(soup, path):
-                    self.forms.append(
-                        Form(page_path=form_path, method=method, action=action, fields=fields)
-                    )
+            self._record_api_doc_hint_if_matches_path(path)
 
             self.pages.append(
                 WebPage(
                     path=path,
-                    status_code=resp.status_code,
+                    status_code=status_code,
                     title=title,
-                    content_type=ctype,
-                    size_bytes=len(resp.content),
+                    content_type=ctype or "text/html",
+                    size_bytes=len(body.encode("utf-8")) if body else 0,
                 )
             )
+        finally:
+            await ctx.close()
 
-            # API-doc hint regardless of Content-Type (swagger.json is served as app/json)
-            if any(path.endswith(hint) or path == hint for hint in _API_DOC_HINT_PATHS):
-                self.api_hints.add(path)
-            # Also flag in-document link hints
-            if ctype == "text/html" and body:
-                for hint in _API_DOC_HINT_PATHS:
-                    if hint in body:
-                        self.api_hints.add(hint)
+    def _record_api_doc_hint_if_matches_path(self, path: str) -> None:
+        """If the URL we just fetched looks like an API doc endpoint
+        (regardless of Content-Type — swagger.json is served as
+        application/json, not text/html, so the body-based hint
+        detection in _handle_links_and_forms misses it), flag it."""
+        if any(path.endswith(hint) or path == hint for hint in _API_DOC_HINT_PATHS):
+            self.api_hints.add(path)
+
+    @staticmethod
+    def _title_from_soup(soup: BeautifulSoup) -> str:
+        if soup.title and soup.title.string:
+            return soup.title.string.strip()[:200]
+        return ""
+
+    def _handle_links_and_forms(
+        self, soup: BeautifulSoup, path: str, depth: int, body: str
+    ) -> None:
+        if depth < self.req.max_depth:
+            for link in self._extract_links(soup, path):
+                if link not in self.visited:
+                    self.queue.append((link, depth + 1))
+
+        for form_path, method, action, fields in self._extract_forms(soup, path):
+            self.forms.append(
+                Form(page_path=form_path, method=method, action=action, fields=fields)
+            )
+
+        # API-doc hint discovery from the rendered body. The path-based
+        # check (request URL itself looks like an API doc) is done by
+        # _record_api_doc_hint_if_matches_path in the caller.
+        for hint in _API_DOC_HINT_PATHS:
+            if hint in body:
+                self.api_hints.add(hint)
 
     def _extract_links(self, soup: BeautifulSoup, current_path: str) -> list[str]:
         """Extract same-origin link paths from a parsed page.
@@ -317,7 +443,7 @@ class _Crawler:
 
 app = FastAPI(
     title="trustchain-tool-webstructure",
-    version="0.1.0",
+    version="0.1.1",
     description="HTML structure-discovery tool. Recursively crawls a target site for pages, forms, and API-doc hints. v0.1: no Playwright / SPA support.",
 )
 
@@ -331,7 +457,7 @@ async def healthz() -> dict[str, str]:
 async def schema() -> dict[str, object]:
     return {
         "tool_id": "webstructure",
-        "version": "0.1.0",
+        "version": "0.1.1",
         "request_schema": WebstructureRequest.model_json_schema(),
         "response_schema": WebstructureResponse.model_json_schema(),
     }

@@ -68,7 +68,7 @@ def test_schema_shape():
     assert r.status_code == 200
     body = r.json()
     assert body["tool_id"] == "webstructure"
-    assert body["version"] == "0.1.0"
+    assert body["version"] == "0.1.1"
     assert "request_schema" in body
     assert "response_schema" in body
 
@@ -99,7 +99,7 @@ async def test_invoke_basic_crawl_finds_pages_and_forms():
 
     r = client.post(
         "/invoke",
-        json={"target_url": "https://target.example/", "max_depth": 2, "max_pages": 20},
+        json={"target_url": "https://target.example/", "max_depth": 2, "max_pages": 20, "use_playwright": False},
     )
     assert r.status_code == 200
     body = WebstructureResponse.model_validate(r.json())
@@ -145,7 +145,7 @@ async def test_same_origin_only_blocks_external_fetch():
 
     r = client.post(
         "/invoke",
-        json={"target_url": "https://target.example/", "max_depth": 2, "same_origin_only": True},
+        json={"target_url": "https://target.example/", "max_depth": 2, "same_origin_only": True, "use_playwright": False},
     )
     assert r.status_code == 200
     body = WebstructureResponse.model_validate(r.json())
@@ -169,7 +169,7 @@ async def test_max_depth_zero_only_fetches_seed():
             headers={"content-type": "text/html"},
         )
     )
-    r = client.post("/invoke", json={"target_url": "https://target.example/", "max_depth": 0})
+    r = client.post("/invoke", json={"target_url": "https://target.example/", "max_depth": 0, "use_playwright": False})
     body = WebstructureResponse.model_validate(r.json())
     assert body.pages_crawled == 1
     assert body.web_pages[0].path == "/"
@@ -194,7 +194,7 @@ async def test_max_pages_hard_cap():
 
     r = client.post(
         "/invoke",
-        json={"target_url": "https://target.example/", "max_depth": 2, "max_pages": 5},
+        json={"target_url": "https://target.example/", "max_depth": 2, "max_pages": 5, "use_playwright": False},
     )
     body = WebstructureResponse.model_validate(r.json())
     assert body.pages_crawled == 5
@@ -219,7 +219,7 @@ async def test_invoke_network_error_soft_fails_the_page_but_continues():
     # Seed fails; tool still returns success=true with the failed page recorded
     respx.get("https://target.example/").mock(side_effect=httpx.ConnectError("boom"))
 
-    r = client.post("/invoke", json={"target_url": "https://target.example/"})
+    r = client.post("/invoke", json={"target_url": "https://target.example/", "use_playwright": False})
     body = WebstructureResponse.model_validate(r.json())
     assert body.success is True
     assert body.pages_crawled == 1
@@ -251,3 +251,51 @@ def test_resolve_to_path_handles_relative():
     crawler = _Crawler(WebstructureRequest(target_url="https://target.example/app/"))
     # from /app/, "nested" resolves to /app/nested
     assert crawler._resolve_to_path("nested", "/app/") == "/app/nested"
+
+
+# ==============================================================
+# Playwright fallback (browser launch fails in test env, must
+# soft-fail to httpx and still return real data)
+# ==============================================================
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_use_playwright_default_falls_back_to_httpx_when_browser_missing():
+    """v0.1.1: use_playwright defaults to True. In a test env without
+    Chromium installed, the browser launch raises and run() must reset
+    state + retry via httpx so the caller still gets a real result.
+    """
+    respx.get("https://target.example/").mock(
+        return_value=httpx.Response(
+            200,
+            text='<html><a href="/p1">p1</a></html>',
+            headers={"content-type": "text/html"},
+        )
+    )
+    respx.get("https://target.example/p1").mock(
+        return_value=httpx.Response(200, text="<html></html>", headers={"content-type": "text/html"})
+    )
+
+    # No use_playwright override → defaults to True. CI / local dev
+    # without `playwright install chromium` triggers fallback.
+    r = client.post("/invoke", json={"target_url": "https://target.example/"})
+    body = WebstructureResponse.model_validate(r.json())
+
+    # Fallback should produce a non-empty crawl, not bail out.
+    assert body.success is True
+    paths = {p.path for p in body.web_pages}
+    assert "/" in paths
+    assert "/p1" in paths
+
+
+def test_request_schema_exposes_playwright_knobs():
+    """The new use_playwright / wait_until / extra_wait_ms fields must
+    appear in /schema so callers (like recon-targetinfo) can discover
+    them programmatically."""
+    schema_resp = client.get("/schema").json()
+    props = schema_resp["request_schema"]["properties"]
+    assert "use_playwright" in props
+    assert props["use_playwright"]["default"] is True  # matches LLMAppSec
+    assert "playwright_wait_until" in props
+    assert "playwright_extra_wait_ms" in props

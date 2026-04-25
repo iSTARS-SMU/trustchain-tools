@@ -12,9 +12,11 @@ RequestExtraction) distilled to a single `/invoke` endpoint.
 
 ## Status
 
-**Current version: `0.1.0`**. Covers link crawl + form extraction +
-API-doc hints over plain HTML. **No Playwright / SPA support in v0.1** —
-deferred; adding Chromium would ~triple the image size.
+**Current version: `0.1.1`**. Adds optional Playwright SPA rendering
+(default ON, matching LLMAppSec). When enabled, headless Chromium
+renders each page so React/Vue/Angular SPAs are visible — without it,
+the tool only sees the empty `<div id="root">` shell. Disable for
+static / SSR sites where the ~1-3 s/page rendering overhead is wasted.
 
 | Feature | v0.1 | deferred |
 |---|---|---|
@@ -22,10 +24,10 @@ deferred; adding Chromium would ~triple the image size.
 | `<form>` → structured fields (name / type / required) | ✅ | |
 | API-doc hint flagging (`/openapi.json`, `/swagger.json`, etc.) | ✅ | |
 | `max_depth` / `max_pages` caps | ✅ | |
-| JS-rendered SPA pages (Playwright) | ❌ | v0.2 |
+| JS-rendered SPA pages (Playwright + headless Chromium) | ✅ v0.1.1 | (default on; toggle via `use_playwright`) |
 | robots.txt parsing / respect | ❌ | v0.2 (pentest context usually ignores anyway) |
 | OpenAPI / Swagger dereferencing → full endpoint list | ❌ | v0.2 |
-| Auth-walled crawl (session cookies) | ❌ | v0.2 |
+| Auth-walled crawl (session cookies) | ❌ | v0.2 (custom add — LLMAppSec doesn't have this) |
 
 ## Request / Response
 
