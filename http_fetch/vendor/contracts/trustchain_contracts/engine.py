@@ -115,6 +115,12 @@ class EngineYamlSpec(ContractModel):
 class CallbackConfig(ContractModel):
     events_url: str
     tools_url: str
+    completion_url: str | None = None
+    """Per-attempt completion endpoint. SDK POSTs the final EngineResult here
+    when run() finishes (success or failure) under the async-invoke flow
+    (spec §3.4): /invoke returns 202 immediately, the orchestrator awaits
+    the result via this callback. Optional for backward compat — if absent,
+    SDK falls back to returning the EngineResult inline on /invoke."""
     token: str
     """Per-attempt callback token. Engine must include it as X-Callback-Token
     header on all callback requests. Orchestrator validates against the

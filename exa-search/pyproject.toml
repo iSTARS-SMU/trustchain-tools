@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "trustchain-tool-exa-search"
-version = "0.1.0"
-description = "TrustChain Pentest exa-search tool — Exa.ai web search wrapper."
+version = "0.1.1"
+description = "TrustChain Pentest exa-search tool — Exa.ai web search wrapper. v0.1.1 adds optional include_text=true to fetch each result's page text excerpt (so downstream LLM extraction has actual content, not just title+URL metadata)."
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.110",

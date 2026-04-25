@@ -50,6 +50,22 @@ class ExaSearchRequest(BaseModel):
     include_domains: list[str] | None = None
     exclude_domains: list[str] | None = None
     timeout_s: int = Field(default=30, ge=5, le=120)
+    include_text: bool = Field(
+        default=False,
+        description="When true, asks Exa to include each result's page text "
+        "(LLM-friendly excerpt) under `text` in the response. Without this, "
+        "results carry only title + url + author metadata, which is useless "
+        "for downstream LLM weakness extraction. Costs more Exa credits but "
+        "transforms search-as-link-list into search-as-content.",
+    )
+    text_max_chars: int = Field(
+        default=1000,
+        ge=100,
+        le=8000,
+        description="Per-result text excerpt length cap when include_text=true. "
+        "Exa returns up to ~3000 chars by default; this caps it on our side "
+        "to keep downstream LLM prompts predictable. Ignored when include_text=false.",
+    )
 
 
 class ExaSearchResult(BaseModel):
@@ -82,6 +98,15 @@ async def _call_exa(
         body["includeDomains"] = req.include_domains
     if req.exclude_domains:
         body["excludeDomains"] = req.exclude_domains
+    if req.include_text:
+        # Exa /search API accepts a `contents` block to control what gets
+        # returned per result. `text=true` makes Exa fetch + summarize each
+        # page, returning a `text` field on each result (capped to ~3000
+        # chars by default; we further cap on our side via text_max_chars
+        # to keep downstream LLM prompts predictable).
+        body["contents"] = {
+            "text": {"maxCharacters": req.text_max_chars}
+        }
 
     headers = {
         "Authorization": f"Bearer {api_key}",

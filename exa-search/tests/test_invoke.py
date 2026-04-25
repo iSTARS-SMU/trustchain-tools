@@ -75,6 +75,64 @@ async def test_invoke_returns_results_on_success():
 
 
 @pytest.mark.asyncio
+async def test_invoke_default_does_not_request_text_content():
+    """v0.1.1: include_text defaults to False to preserve the
+    cheap-search-only behavior. No `contents` block in the body."""
+    captured: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        import json
+        captured["body"] = json.loads(request.content.decode())
+        return httpx.Response(200, json={"results": []})
+
+    _install_mock_exa(handler)
+    transport = ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://t") as ac:
+        await ac.post("/invoke", json={"query": "test"})
+
+    assert "contents" not in captured["body"]
+
+
+@pytest.mark.asyncio
+async def test_invoke_include_text_adds_contents_block():
+    """v0.1.1: include_text=True forwards a `contents.text` block to Exa
+    so each result carries the page text excerpt the LLM can extract
+    from. text_max_chars overrides the per-result cap."""
+    captured: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        import json
+        captured["body"] = json.loads(request.content.decode())
+        return httpx.Response(
+            200,
+            json={
+                "results": [
+                    {
+                        "title": "Example",
+                        "url": "https://x",
+                        "text": "actual page text content here ...",
+                    }
+                ]
+            },
+        )
+
+    _install_mock_exa(handler)
+    transport = ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://t") as ac:
+        resp = await ac.post(
+            "/invoke",
+            json={"query": "x", "include_text": True, "text_max_chars": 500},
+        )
+
+    body = resp.json()
+    assert body["success"] is True
+    # Outbound body to Exa contains the contents block
+    assert captured["body"]["contents"] == {"text": {"maxCharacters": 500}}
+    # Inbound result carries the text field through
+    assert "text" in body["results"][0]
+
+
+@pytest.mark.asyncio
 async def test_invoke_passes_domain_filters():
     captured: dict = {}
 
