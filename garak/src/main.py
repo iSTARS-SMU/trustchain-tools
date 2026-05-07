@@ -268,6 +268,16 @@ def _run_garak(task_id: str, req: GarakScanRequest) -> None:
             cfg_path.write_text(json.dumps(req.rest_config))
             argv += ["--generator_option_file", str(cfg_path)]
 
+        # Record argv + env hint for debug visibility — without this the
+        # operator gets "no report.jsonl produced" and zero stderr when
+        # garak fast-rejects an invalid --model_type or argv flag.
+        t["argv"] = argv
+        t["env_hint"] = {
+            "OPENAI_BASE_URL": env.get("OPENAI_BASE_URL"),
+            "OLLAMA_HOST": env.get("OLLAMA_HOST"),
+            "GARAK_ROOT_DIR": env.get("GARAK_ROOT_DIR"),
+        }
+
         try:
             proc = subprocess.run(
                 argv, env=env, capture_output=True,
@@ -285,14 +295,28 @@ def _run_garak(task_id: str, req: GarakScanRequest) -> None:
             t["error"] = f"{type(e).__name__}: {e}"
             return
 
-        # Locate report.jsonl — garak writes it to ~/.local/share/garak/.
-        # Our --report_prefix forces a deterministic filename inside tmpdir.
-        candidates = list(report_dir.glob("report*.jsonl")) + list(
-            report_dir.glob("report*.report.jsonl")
-        )
+        # Capture both streams + returncode so a fast-exit garak (eg
+        # invalid argv) gives the operator something to read.
+        t["returncode"] = proc.returncode
+        t["stdout_tail"] = (proc.stdout or "")[-_REPORT_TAIL_BYTES:]
+
+        # Locate report.jsonl — garak writes it to ~/.local/share/garak/
+        # by default. Our --report_prefix forces a path inside tmpdir,
+        # but garak versions vary on whether they honor the prefix dir
+        # or just the filename stem. Search both tmpdir AND garak's
+        # default home in case the prefix only takes the basename.
+        search_roots = [report_dir]
+        garak_home = Path(env.get("HOME", "/root")) / ".local/share/garak"
+        if garak_home.exists():
+            search_roots.append(garak_home)
+        candidates: list[Path] = []
+        for root in search_roots:
+            candidates.extend(root.rglob("report*.jsonl"))
         report_jsonl = ""
         report_path = None
         if candidates:
+            # Pick newest by mtime — multiple runs may stack in garak_home.
+            candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
             report_path = str(candidates[0])
             try:
                 report_jsonl = candidates[0].read_text()
