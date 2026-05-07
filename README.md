@@ -48,6 +48,9 @@ curl -X POST http://localhost:9211/invoke \
 | `nuclei`     | 9214 | `ghcr.io/istars-smu/trustchain-tool-nuclei`            |
 | `wafw00f`    | 9213 | `ghcr.io/istars-smu/trustchain-tool-wafw00f`           |
 | `whatweb`    | 9212 | `ghcr.io/istars-smu/trustchain-tool-whatweb`           |
+| `sqlmap`     | 9221 | `ghcr.io/istars-smu/trustchain-tool-sqlmap`            |
+| `commix`     | 9222 | `ghcr.io/istars-smu/trustchain-tool-commix`            |
+| `dalfox`     | 9223 | `ghcr.io/istars-smu/trustchain-tool-dalfox`            |
 
 Each tool exposes:
 - `POST /invoke` — run the underlying scan; request/response shapes vary

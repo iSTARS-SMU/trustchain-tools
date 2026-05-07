@@ -75,3 +75,24 @@ services:
       context: ./whatweb
     hostname: whatweb-svc
     ports: ["9212:9212"]
+
+  sqlmap-svc:
+    image: ghcr.io/istars-smu/trustchain-tool-sqlmap:${TAG:-latest}
+    build:
+      context: ./sqlmap
+    hostname: sqlmap-svc
+    ports: ["9221:9221"]
+
+  commix-svc:
+    image: ghcr.io/istars-smu/trustchain-tool-commix:${TAG:-latest}
+    build:
+      context: ./commix
+    hostname: commix-svc
+    ports: ["9222:9222"]
+
+  dalfox-svc:
+    image: ghcr.io/istars-smu/trustchain-tool-dalfox:${TAG:-latest}
+    build:
+      context: ./dalfox
+    hostname: dalfox-svc
+    ports: ["9223:9223"]
