@@ -5,21 +5,23 @@
 # than `go install` from source — same rationale as nuclei: ~5s per arch
 # vs ~30 min under QEMU. Releases at:
 #   https://github.com/hahwul/dalfox/releases
-# Asset names: dalfox_<ver>_linux_amd64.tar.gz / linux_arm64.tar.gz
+# Asset names: dalfox-linux-<arch>.tar.gz (single binary inside, named
+# `dalfox-linux-<arch>` — we rename to `dalfox` after extraction).
 
 FROM python:3.11-slim
 
 ARG TARGETARCH
-ARG DALFOX_VERSION=2.10.6
+ARG DALFOX_VERSION=2.13.0
 
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl \
-    && curl -fsSL "https://github.com/hahwul/dalfox/releases/download/v${DALFOX_VERSION}/dalfox_${DALFOX_VERSION}_linux_${TARGETARCH}.tar.gz" \
+    && curl -fsSL "https://github.com/hahwul/dalfox/releases/download/v${DALFOX_VERSION}/dalfox-linux-${TARGETARCH}.tar.gz" \
         -o /tmp/dalfox.tgz \
-    && tar -xzf /tmp/dalfox.tgz -C /usr/local/bin/ dalfox \
+    && tar -xzf /tmp/dalfox.tgz -C /tmp \
+    && mv "/tmp/dalfox-linux-${TARGETARCH}" /usr/local/bin/dalfox \
     && rm /tmp/dalfox.tgz \
     && chmod +x /usr/local/bin/dalfox \
     && dalfox version \

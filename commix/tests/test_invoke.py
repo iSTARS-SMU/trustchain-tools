@@ -62,6 +62,9 @@ async def test_invoke_default_get(monkeypatch):
     assert "--url" in cmd and "http://t.example/?cmd=ls" in cmd
     assert "-p" in cmd and "cmd" in cmd
     assert "--batch" in cmd
+    # --ignore-stdin must be present: commix detects non-TTY stdin and
+    # switches to STDIN_PARSING mode, which silently ignores --url.
+    assert "--ignore-stdin" in cmd
     assert "--level" in cmd
     assert "--method" not in cmd  # GET default
     assert "--data" not in cmd

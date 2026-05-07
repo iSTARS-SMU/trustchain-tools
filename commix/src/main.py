@@ -113,10 +113,14 @@ class CommixResult(BaseModel):
 
 
 async def _run_commix(req: CommixRequest) -> CommixResult:
+    # --ignore-stdin: commix auto-detects non-TTY stdin (e.g. when invoked
+    # via subprocess.PIPE) and switches to STDIN_PARSING mode, which
+    # silently ignores --url. We always run as a subprocess, so opt out.
     cmd: list[str] = [
         "commix",
         "--url", req.target,
         "--batch",
+        "--ignore-stdin",
         "--level", str(req.level),
     ]
     if req.param:
