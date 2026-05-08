@@ -1,14 +1,22 @@
 # trustchain-tools feroxbuster ai-app wordlist
-# ~200 paths optimized for AI/LLM/agent application discovery.
+# ~240 paths optimized for AI/LLM/agent application discovery.
 # Generic conventions only — no per-target / per-product paths.
 # Curated from OpenAI / Anthropic / OSS LLM-app / MCP / LangServe / vector-DB conventions.
 #
 # This file is read with feroxbuster -w; lines starting with # are comments
 # (feroxbuster strips them). Empty lines also fine.
 #
+# Order discipline (Codex review 2026-05-08): feroxbuster reads
+# top-to-bottom + smoke `--time-limit` may stop before the wordlist
+# is exhausted. The first ~50 entries are the HIGH-VALUE AI endpoints
+# we want hit even on a 60-request budget; less common patterns
+# follow.
+#
 # Layout:
-#   1. OpenAI-shape LLM API
-#   2. Generic chat / completions / agents
+#   0. HIGH-VALUE AI endpoints (first 50 — chat, completions, models,
+#      health, RAG search, agent, A2A, document upload, etc.)
+#   1. OpenAI-shape extras (audio / images / fine-tunes / vector_stores)
+#   2. Generic chat / completions / agents (broader coverage)
 #   3. Embeddings / vector DB / RAG
 #   4. MCP / agent protocols
 #   5. LangServe / LangChain shapes
@@ -16,11 +24,79 @@
 #   7. Auth / admin
 #   8. Health / docs / metrics
 #   9. File / document upload
-#   10. Common API root paths
+#  10. Common API root paths
 
-# 1. OpenAI-shape
+# 0. HIGH-VALUE AI endpoints (load first, smoke-budget-survivable)
+# Discoverable on dvaia / dvaa / chroma / dvla / langserve / mcp
+# /generic-RAG /generic-A2A targets. Prioritized so smoke runs
+# (max_requests=60) hit them.
+
+# Health
+health
+api/health
+v1/health
+
+# Models (bare + versioned)
+api/models
+v1/models
+models
+
+# Chat / completions (bare + versioned, OpenAI/Anthropic shapes)
+api/chat
 v1/chat/completions
+api/chat/completions
+api/messages
+v1/messages
+api/completions
 v1/completions
+
+# Agent protocols
+api/agent
+api/agent/chat
+api/agent/run
+api/agent/invoke
+api/agents
+agent/invoke
+agent/chat
+
+# RAG (bare + versioned)
+api/rag/search
+api/rag/query
+api/rag
+api/rag/chunks
+api/rag/add-document
+v1/embeddings
+api/embeddings
+
+# Document / file upload
+api/documents
+api/documents/upload
+api/upload
+api/files
+
+# A2A — Agent-to-Agent protocol
+a2a/message
+a2a/task
+api/a2a/message
+.well-known/a2a-agent
+
+# MCP transport
+mcp
+sse
+mcp/sse
+api/mcp
+
+# Templates / chat variants
+api/chat-with-template
+api/templates
+api/prompts
+
+# Tool calling
+api/tools
+api/tools/call
+tools/call
+
+# 1. OpenAI-shape extras
 v1/embeddings
 v1/models
 v1/files
