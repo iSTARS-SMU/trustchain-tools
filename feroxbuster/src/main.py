@@ -143,7 +143,14 @@ def _build_command(
 
     Pure function — no side effects, no subprocess. Tested independently.
     """
-    cmd = ["feroxbuster", "-u", target, "--no-state", "-q"]
+    # `--silent` makes stdout URL-only (one URL per line), discarding the
+    # status/method/size columns of the default rich format. Engines parse
+    # the URL list line-by-line; without --silent each line looks like
+    # "200      GET     5l   ... http://t.example/foo" and the engine's
+    # url-shaped-string check rejects every line. Live-verified fix
+    # 2026-05-08 against 25-dvaia (recon collector was getting 0 in-scope
+    # URLs from feroxbuster output).
+    cmd = ["feroxbuster", "-u", target, "--no-state", "--silent"]
 
     wordlist_path = _WORDLIST_PATHS[wordlist_name]
     if wordlist_path is not None:

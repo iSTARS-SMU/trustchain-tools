@@ -64,7 +64,7 @@ def test_build_command_default_uses_feroxbuster_default_wordlist():
     assert "-w" not in cmd
     assert "feroxbuster" in cmd
     assert "-u" in cmd and "https://t.example" in cmd
-    assert "--no-state" in cmd and "-q" in cmd
+    assert "--no-state" in cmd and "--silent" in cmd
     assert "--depth" in cmd and "1" in cmd
 
 
@@ -160,7 +160,7 @@ async def test_invoke_returns_discovered_urls_default(monkeypatch):
     # argv: feroxbuster -u <url> --no-state -q --depth 1
     assert captured == [[
         "feroxbuster", "-u", "https://target.example",
-        "--no-state", "-q", "--depth", "1",
+        "--no-state", "--silent", "--depth", "1",
     ]]
 
 
