@@ -47,21 +47,32 @@ api/chat
 api/v1/chat
 api/v2/chat
 api/chat/completions
+api/chat-with-template
+api/chat/template
 api/completions
 api/v1/completions
 api/messages
 api/v1/messages
+api/v1/messages/batches
 api/conversations
 api/v1/conversations
 api/threads
 api/agents
 api/v1/agents
 api/agent
+api/agent/chat
+api/agent/run
+api/agent/invoke
+api/agent/task
 agents
 agents/list
+agents/run
+agents/invoke
 agent
 agent/invoke
 agent/run
+agent/chat
+agent/task
 generate
 api/generate
 api/v1/generate
@@ -71,6 +82,14 @@ api/v1/predict
 inference
 api/inference
 api/v1/inference
+# Bare models endpoint (self-hosted apps that don't use v1/ prefix)
+api/models
+api/v1/models
+api/v2/models
+models
+v1/models
+api/templates
+api/prompts
 
 # 3. Embeddings / vector DB / RAG
 api/embeddings
@@ -94,6 +113,16 @@ api/retrieve
 api/v1/retrieve
 api/rerank
 api/v1/rerank
+# Bare RAG paths (without /v1/) — common in self-hosted RAG demos
+api/rag
+api/rag/search
+api/rag/query
+api/rag/retrieve
+api/rag/add-document
+api/rag/chunks
+api/rag/index
+rag/search
+rag/query
 
 # 4. MCP / agent protocols
 mcp
@@ -103,6 +132,8 @@ messages
 tools
 api/tools
 api/v1/tools
+api/tools/call
+api/tools/invoke
 tools/list
 tools/call
 api/mcp
@@ -110,6 +141,17 @@ rpc
 streamable
 api/rpc
 jsonrpc
+# A2A — Agent-to-Agent protocol (Google A2A spec)
+a2a
+a2a/message
+a2a/task
+a2a/agent
+agent/a2a
+agent/a2a/message
+api/a2a
+api/a2a/message
+api/a2a/task
+.well-known/a2a-agent
 
 # 5. LangServe / LangChain shapes
 chain
@@ -194,9 +236,14 @@ api/v1/upload
 files
 api/files
 api/v1/files
+api/files/upload
 api/documents
+api/documents/upload
+api/documents/ingest
+api/document/upload
 documents
 api/v1/documents
+api/v1/documents/upload
 api/ingest
 ingest
 api/parse
