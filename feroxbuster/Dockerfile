@@ -16,6 +16,7 @@ RUN apt-get update \
 
 COPY pyproject.toml ./
 COPY src ./src
+COPY wordlists ./wordlists
 RUN pip install --no-cache-dir --break-system-packages -e .
 
 EXPOSE 9215

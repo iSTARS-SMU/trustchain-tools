@@ -1,0 +1,237 @@
+# trustchain-tools feroxbuster ai-app wordlist
+# ~200 paths optimized for AI/LLM/agent application discovery.
+# Generic conventions only — no per-target / per-product paths.
+# Curated from OpenAI / Anthropic / OSS LLM-app / MCP / LangServe / vector-DB conventions.
+#
+# This file is read with feroxbuster -w; lines starting with # are comments
+# (feroxbuster strips them). Empty lines also fine.
+#
+# Layout:
+#   1. OpenAI-shape LLM API
+#   2. Generic chat / completions / agents
+#   3. Embeddings / vector DB / RAG
+#   4. MCP / agent protocols
+#   5. LangServe / LangChain shapes
+#   6. GraphQL / RPC / WebSocket
+#   7. Auth / admin
+#   8. Health / docs / metrics
+#   9. File / document upload
+#   10. Common API root paths
+
+# 1. OpenAI-shape
+v1/chat/completions
+v1/completions
+v1/embeddings
+v1/models
+v1/files
+v1/audio/transcriptions
+v1/audio/translations
+v1/audio/speech
+v1/images/generations
+v1/images/edits
+v1/images/variations
+v1/moderations
+v1/fine-tunes
+v1/fine_tuning/jobs
+v1/assistants
+v1/threads
+v1/threads/runs
+v1/vector_stores
+v1/uploads
+v1/responses
+v1/realtime
+
+# 2. Generic chat / completions / agents
+chat
+api/chat
+api/v1/chat
+api/v2/chat
+api/chat/completions
+api/completions
+api/v1/completions
+api/messages
+api/v1/messages
+api/conversations
+api/v1/conversations
+api/threads
+api/agents
+api/v1/agents
+api/agent
+agents
+agents/list
+agent
+agent/invoke
+agent/run
+generate
+api/generate
+api/v1/generate
+predict
+api/predict
+api/v1/predict
+inference
+api/inference
+api/v1/inference
+
+# 3. Embeddings / vector DB / RAG
+api/embeddings
+api/v1/embeddings
+embeddings
+api/embed
+embed
+api/v1/collections
+api/v2/collections
+collections
+api/v1/index
+api/v2/index
+api/v1/vectors
+api/v2/vectors
+api/query
+api/v1/query
+api/search
+api/v1/search
+search
+api/retrieve
+api/v1/retrieve
+api/rerank
+api/v1/rerank
+
+# 4. MCP / agent protocols
+mcp
+mcp/sse
+sse
+messages
+tools
+api/tools
+api/v1/tools
+tools/list
+tools/call
+api/mcp
+rpc
+streamable
+api/rpc
+jsonrpc
+
+# 5. LangServe / LangChain shapes
+chain
+chain/invoke
+chain/stream
+chain/batch
+chain/playground
+chain/playground/feedback
+api/chain
+api/chains
+chains
+runnable
+runnable/invoke
+api/runnable
+playground
+
+# 6. GraphQL / RPC / WebSocket
+graphql
+graphiql
+api/graphql
+v1/graphql
+ws
+websocket
+api/ws
+socket.io
+
+# 7. Auth / admin
+auth
+api/auth
+api/v1/auth
+api/v2/auth
+oauth
+oauth/token
+oauth/authorize
+.well-known/openid-configuration
+.well-known/oauth-authorization-server
+login
+signin
+signup
+register
+admin
+admin/dashboard
+admin/login
+api/admin
+api/v1/admin
+admin/users
+api/users
+api/v1/users
+me
+api/me
+api/v1/me
+api/profile
+profile
+account
+api/account
+
+# 8. Health / docs / metrics
+health
+healthz
+readyz
+livez
+ping
+api/health
+api/v1/health
+api/status
+status
+metrics
+prometheus
+openapi.json
+swagger.json
+swagger
+docs
+redoc
+api/docs
+api/openapi
+api/swagger
+
+# 9. File / document upload
+upload
+api/upload
+api/v1/upload
+files
+api/files
+api/v1/files
+api/documents
+documents
+api/v1/documents
+api/ingest
+ingest
+api/parse
+api/extract
+
+# 10. Common API root + meta
+api
+api/v1
+api/v2
+api/v3
+v1
+v2
+v3
+api/version
+api/info
+api/config
+config
+api/settings
+settings
+debug
+api/debug
+api/keys
+api/v1/keys
+api/usage
+api/v1/usage
+api/quota
+api/limits
+
+# 11. Misc AI-app boilerplate
+favicon.ico
+robots.txt
+sitemap.xml
+app
+home
+dashboard
+console
+api/console
+api/v1/console
