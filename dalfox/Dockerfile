@@ -18,6 +18,9 @@ ENV PYTHONUNBUFFERED=1
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl \
+        chromium fonts-liberation libnss3 libxcomposite1 libxdamage1 \
+        libxrandr2 libgbm1 libxkbcommon0 libpango-1.0-0 libcairo2 \
+        libasound2 libatk-bridge2.0-0 libatk1.0-0 libcups2 \
     && curl -fsSL "https://github.com/hahwul/dalfox/releases/download/v${DALFOX_VERSION}/dalfox-linux-${TARGETARCH}.tar.gz" \
         -o /tmp/dalfox.tgz \
     && tar -xzf /tmp/dalfox.tgz -C /tmp \
@@ -28,6 +31,11 @@ RUN apt-get update \
     && apt-get purge -y curl \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
+
+# dalfox uses chromedp under the hood; ensure it can find the
+# chromium binary. Debian's chromium package installs to
+# /usr/bin/chromium (no `google-chrome` symlink by default).
+ENV CHROME_BIN=/usr/bin/chromium
 
 COPY pyproject.toml ./
 COPY src ./src
