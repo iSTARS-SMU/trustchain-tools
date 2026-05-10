@@ -123,6 +123,28 @@ class WebstructureRequest(BaseModel):
         le=10_000,
         description="Additional delay after networkidle before extracting the DOM. Set 1000-3000 for very lazy SPAs that fire XHR after networkidle. 0 by default to keep the common case fast.",
     )
+    cookies: dict[str, str] | None = Field(
+        default=None,
+        description="Pre-authenticated session cookies to attach to "
+                    "every fetch (Playwright context AND httpx fast-path). "
+                    "Caller is responsible for ensuring cookies are valid "
+                    "for `target_url`'s domain — we set them with the "
+                    "URL's hostname as the cookie domain. Used by "
+                    "pentest-engine recon to propagate auth_recipe-"
+                    "established sessions into the SPA crawl, so lesson-"
+                    "init / authenticated routes become reachable. "
+                    "None (default) = unauthenticated crawl.",
+    )
+    headers: dict[str, str] | None = Field(
+        default=None,
+        description="Extra HTTP headers attached to every request "
+                    "(both Playwright extra_http_headers and httpx). "
+                    "Use for `Authorization: Bearer <token>` or custom "
+                    "static auth headers (`X-Api-Key`, `X-Auth-Token`). "
+                    "Combines with cookies — both can be set "
+                    "simultaneously. Caller MUST not include `Cookie:` "
+                    "header here; use the `cookies` field instead.",
+    )
 
 
 class WebPage(BaseModel):
@@ -290,6 +312,20 @@ class _Crawler:
         # Per-page context so cookies don't leak across pages and we can
         # close cleanly even on errors.
         ctx = await self._browser.new_context()
+        # Auth state propagation (Item 1, 2026-05-10): the caller
+        # supplied authenticated session cookies and/or extra headers
+        # when their target requires login (eg WebGoat lessons need
+        # JSESSIONID + lesson-state init that only fires for an
+        # authenticated user). Apply before navigation so the FIRST
+        # request to `target_url` is authenticated.
+        if self.req.cookies:
+            host = urlparse(self.origin).hostname or ""
+            await ctx.add_cookies([
+                {"name": k, "value": v, "domain": host, "path": "/"}
+                for k, v in self.req.cookies.items()
+            ])
+        if self.req.headers:
+            await ctx.set_extra_http_headers(self.req.headers)
         try:
             page = await ctx.new_page()
             try:
@@ -443,7 +479,7 @@ class _Crawler:
 
 app = FastAPI(
     title="trustchain-tool-webstructure",
-    version="0.1.1",
+    version="0.2.0",
     description="HTML structure-discovery tool. Recursively crawls a target site for pages, forms, and API-doc hints. v0.1: no Playwright / SPA support.",
 )
 
@@ -457,7 +493,7 @@ async def healthz() -> dict[str, str]:
 async def schema() -> dict[str, object]:
     return {
         "tool_id": "webstructure",
-        "version": "0.1.1",
+        "version": "0.2.0",
         "request_schema": WebstructureRequest.model_json_schema(),
         "response_schema": WebstructureResponse.model_json_schema(),
     }
@@ -475,8 +511,18 @@ async def invoke(body: WebstructureRequest) -> WebstructureResponse:
             duration_sec=time.perf_counter() - started,
         )
 
+    # Compose httpx headers + cookies from request (Item 1: auth state
+    # propagation, parallel to Playwright path). Caller-supplied headers
+    # override our default User-Agent if they collide; that's fine —
+    # caller controls auth + tooling identity. Cookies attach to the
+    # AsyncClient so EVERY fetch carries them.
+    httpx_headers = {"User-Agent": USER_AGENT}
+    if body.headers:
+        httpx_headers.update(body.headers)
+    httpx_cookies = body.cookies or None
     async with httpx.AsyncClient(
-        headers={"User-Agent": USER_AGENT},
+        headers=httpx_headers,
+        cookies=httpx_cookies,
         follow_redirects=True,
     ) as client:
         try:

@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "trustchain-tool-webstructure"
-version = "0.1.1"
-description = "TrustChain Pentest webstructure tool — HTML link / form / API-doc discovery via recursive same-origin crawl. v0.1.1 adds optional Playwright SPA rendering (default ON, matches LLMAppSec)."
+version = "0.2.0"
+description = "TrustChain Pentest webstructure tool — HTML link / form / API-doc discovery via recursive same-origin crawl. v0.2.0 adds cookies/headers fields for authenticated SPA crawl (Playwright + httpx); v0.1.1 added Playwright SPA rendering."
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.110,<1.0",

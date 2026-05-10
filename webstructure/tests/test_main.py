@@ -68,7 +68,7 @@ def test_schema_shape():
     assert r.status_code == 200
     body = r.json()
     assert body["tool_id"] == "webstructure"
-    assert body["version"] == "0.1.1"
+    assert body["version"] == "0.2.0"
     assert "request_schema" in body
     assert "response_schema" in body
 
@@ -211,6 +211,100 @@ def test_invoke_rejects_missing_scheme():
     body = WebstructureResponse.model_validate(r.json())
     assert body.success is False
     assert "bad_request" in body.error
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_invoke_propagates_cookies_to_httpx_path():
+    """Item 1 (2026-05-10): caller-supplied cookies attach to every
+    httpx fetch. Verifies the Cookie header is sent on the request
+    that crawler issues."""
+    captured: list[str] = []
+
+    def _capture(request):
+        captured.append(request.headers.get("cookie", ""))
+        return httpx.Response(
+            200, text='<html><a href="/x">x</a></html>',
+            headers={"content-type": "text/html"},
+        )
+
+    respx.get("https://target.example/").mock(side_effect=_capture)
+    respx.get("https://target.example/x").mock(side_effect=_capture)
+
+    r = client.post(
+        "/invoke",
+        json={
+            "target_url": "https://target.example/",
+            "use_playwright": False,
+            "cookies": {"JSESSIONID": "abc123", "auth": "yes"},
+        },
+    )
+    assert r.status_code == 200
+    body = WebstructureResponse.model_validate(r.json())
+    assert body.success is True
+    # All fetches carried the Cookie header
+    assert all("JSESSIONID=abc123" in c for c in captured)
+    assert all("auth=yes" in c for c in captured)
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_invoke_propagates_headers_to_httpx_path():
+    """Item 1: caller-supplied headers (eg Authorization Bearer)
+    attach to every httpx fetch."""
+    captured: list[str] = []
+
+    def _capture(request):
+        captured.append(request.headers.get("authorization", ""))
+        return httpx.Response(
+            200, text="<html></html>",
+            headers={"content-type": "text/html"},
+        )
+
+    respx.get("https://target.example/").mock(side_effect=_capture)
+
+    r = client.post(
+        "/invoke",
+        json={
+            "target_url": "https://target.example/",
+            "use_playwright": False,
+            "headers": {"Authorization": "Bearer xyz789"},
+        },
+    )
+    assert r.status_code == 200
+    body = WebstructureResponse.model_validate(r.json())
+    assert body.success is True
+    assert "Bearer xyz789" in captured[0]
+
+
+def test_invoke_cookies_and_headers_default_none():
+    """Backward compat: existing callers don't set cookies/headers,
+    request still validates + behaves identically to before."""
+    r = client.post(
+        "/invoke",
+        json={
+            "target_url": "https://target.example/",
+            "use_playwright": False,
+        },
+    )
+    # Doesn't 422 / 400; webstructure validates + (mocked or not)
+    # tries to crawl. Either way the schema accepts the absent fields.
+    assert r.status_code == 200
+
+
+def test_request_model_rejects_cookie_header_in_headers_dict():
+    """Caller MUST not put `Cookie:` in headers dict — they should
+    use cookies field. Pydantic doesn't enforce this directly, but
+    the docstring + acceptance test below documents the contract.
+
+    Currently: schema accepts both. We document but don't reject.
+    Test passes — if a future safety patch rejects, update test."""
+    from webstructure.main import WebstructureRequest
+    # Should not raise — schema is permissive on this
+    WebstructureRequest(
+        target_url="https://target.example/",
+        headers={"Cookie": "x=y"},  # deprecated but accepted
+    )
 
 
 @pytest.mark.asyncio
