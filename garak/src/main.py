@@ -67,7 +67,7 @@ logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
 
 _TASK_TIMEOUT_S = int(os.environ.get("TASK_TIMEOUT", "1800"))     # 30 min
 _REPORT_TAIL_BYTES = 4096
-_SAFE_NAME_RE = re.compile(r"^[A-Za-z0-9_./-]{1,256}$")           # probe/model names
+_SAFE_NAME_RE = re.compile(r"^[A-Za-z0-9_.:/-]{1,256}$")          # probe/model names (':' for ollama name:tag)
 
 # In-memory task table. Single-replica service; that's fine for v1.
 # If multi-replica becomes a need, persist to MinIO / Postgres.
@@ -218,7 +218,10 @@ def _build_garak_argv(
         # from env at probe time; we set them in _run_garak.
         argv += ["--model_name", req.model_name]
     elif req.framework == "ollama":
-        argv += ["--model_type", "rest.OllamaGenerator"]
+        # garak's ollama generator is `ollama` (garak.generators.ollama) in the
+        # pinned 0.15.x — `rest.OllamaGenerator` does not exist there. ollama
+        # host defaults to 127.0.0.1:11434 (OLLAMA_HOST overridable).
+        argv += ["--model_type", "ollama"]
         argv += ["--model_name", req.model_name]
     elif req.framework == "tgi":
         argv += ["--model_type", "huggingface.InferenceAPI"]
