@@ -96,3 +96,10 @@ services:
       context: ./dalfox
     hostname: dalfox-svc
     ports: ["9223:9223"]
+
+  gadget-svc:
+    image: ghcr.io/istars-smu/trustchain-tool-gadget:${TAG:-latest}
+    build:
+      context: ./gadget
+    hostname: gadget-svc
+    ports: ["9295:9295"]
