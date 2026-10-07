@@ -52,6 +52,15 @@ class TestRequestValidation:
                 probes=["-rm-rf"],
             )
 
+    def test_model_name_accepts_ollama_name_tag(self):
+        # ollama model ids carry a ':' (name:tag) — must be accepted.
+        req = GarakScanRequest(
+            target_url="http://localhost:11434",
+            framework="ollama",
+            model_name="qwen3.6:latest",
+        )
+        assert req.model_name == "qwen3.6:latest"
+
     def test_probes_must_be_non_empty(self):
         with pytest.raises(ValueError, match="empty"):
             GarakScanRequest(
@@ -119,5 +128,5 @@ class TestArgvBuilder:
             model_name="llama2",
         )
         argv = _build_garak_argv(req, tmp_path)
-        assert "rest.OllamaGenerator" in argv
+        assert "ollama" in argv          # garak 0.15.x generator (not rest.OllamaGenerator)
         assert "llama2" in argv
